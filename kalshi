@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101827">
+<title>BTC 15-Minute Kalshi Tracker</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1120;--panel:#121c2e;--line:#26344b;--muted:#9fb0c8;--text:#eef4ff;--green:#36d399;--red:#fb7185;--yellow:#fbbf24;--blue:#7aa7ff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#0b1120,#101a2c);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text)}
+main{max-width:1100px;margin:auto;padding:22px 16px 44px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}.eyebrow{color:var(--blue);text-transform:uppercase;letter-spacing:.13em;font-size:11px;font-weight:800}h1{margin:5px 0;font-size:clamp(25px,4vw,36px)}.sub{color:var(--muted);max-width:660px}.status{border:1px solid var(--line);border-radius:999px;padding:7px 11px;color:var(--muted);font-size:12px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0}.card,.panel{background:rgba(18,28,46,.94);border:1px solid var(--line);border-radius:17px;padding:16px;min-width:0}.label{font-size:12px;color:var(--muted);margin-bottom:7px}.value{font-size:clamp(20px,3vw,28px);font-weight:750;letter-spacing:-.03em;overflow-wrap:anywhere}.small{font-size:12px;color:var(--muted);margin-top:5px}.layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.8fr);gap:12px}.panel h2{font-size:16px;margin:0 0 12px}.signal{display:flex;align-items:center;gap:12px;border-radius:13px;padding:14px;background:#18263b;margin-bottom:12px}.badge{font-weight:850;font-size:13px;border-radius:9px;padding:7px 10px;white-space:nowrap}.up{background:#103b32;color:var(--green)}.down{background:#421e2b;color:var(--red)}.neutral{background:#3b3017;color:var(--yellow)}.signal strong{display:block;font-size:18px}.signal p{margin:3px 0 0;color:var(--muted);font-size:12px}.meter{height:8px;border-radius:9px;background:#253249;overflow:hidden;margin:10px 0}.meter span{height:100%;display:block;width:0;background:var(--blue);transition:width .25s}.chartbox{height:270px;position:relative}.chartbox canvas{width:100%;height:100%;display:block}.legend{display:flex;gap:14px;color:var(--muted);font-size:12px;margin-top:9px;flex-wrap:wrap}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:var(--blue)}.rows{display:grid;gap:0}.row{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:10px 0}.row span:first-child{color:var(--muted)}.row strong{text-align:right}.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}button{border:1px solid var(--line);background:#1a2940;color:var(--text);padding:9px 12px;border-radius:10px;font-weight:650;cursor:pointer}button:hover{border-color:var(--blue)}.note{margin-top:14px;color:var(--muted);font-size:12px}.error{color:var(--yellow)}.footer{color:var(--muted);font-size:12px;margin-top:18px}.pill{display:inline-block;border:1px solid var(--line);border-radius:8px;padding:3px 7px;font-size:11px;color:var(--muted)}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:1fr}.chartbox{height:230px}}@media(max-width:380px){main{padding:14px 10px}.card,.panel{padding:12px}.value{font-size:21px}}
+</style>
+</head>
+<body>
+<main>
+ <div class="top">
+  <div><div class="eyebrow">Market monitor · read-only</div><h1>BTC 15-Minute Tracker</h1><div class="sub">A mobile-friendly dashboard for Kalshi's Bitcoin 15-minute UP/DOWN market. It tracks public market data and generates rule-based signals; it does not place trades.</div></div>
+  <div class="status" id="status">● Connecting to market data…</div>
+ </div>
+ <section class="grid">
+  <div class="card"><div class="label">BTC reference price</div><div class="value" id="btc">$—</div><div class="small" id="btcChange">Waiting for data</div></div>
+  <div class="card"><div class="label">Kalshi target / strike</div><div class="value" id="strike">$—</div><div class="small" id="distance">Distance to target: —</div></div>
+  <div class="card"><div class="label">Current 15-min window</div><div class="value" id="countdown">—:—</div><div class="small" id="windowTitle">Waiting for market</div></div>
+  <div class="card"><div class="label">Kalshi UP / DOWN asks</div><div class="value" id="asks">— / —</div><div class="small">Indicative contract prices (¢)</div></div>
+ </section>
+ <section class="layout">
+  <div class="panel">
+   <h2>BTC reference price · recent updates</h2>
+   <div class="chartbox"><canvas id="chart" aria-label="Recent Bitcoin reference price chart"></canvas></div>
+   <div class="legend"><span><i class="dot"></i>BTC price (Coinbase)</span><span class="pill" id="lastUpdate">No updates yet</span></div>
+   <div class="controls"><button id="refresh">Refresh now</button><button id="alerts">Enable browser alerts</button><button id="pause">Pause updates</button></div>
+   <div class="note">The line is a live reference-price trace, not Kalshi's settlement index. Refresh interval is about 5 seconds.</div>
+  </div>
+  <div class="panel">
+   <h2>Rule-based signal</h2>
+   <div class="signal"><span id="signalBadge" class="badge neutral">WAIT</span><div><strong id="signalTitle">Gathering data</strong><p id="signalReason">A signal requires enough recent observations.</p></div></div>
+   <div class="label">Signal strength (heuristic, not a probability)</div><div class="meter"><span id="meter"></span></div>
+   <div class="rows">
+    <div class="row"><span>Short momentum</span><strong id="momentum">—</strong></div>
+    <div class="row"><span>EMA 9 vs EMA 21</span><strong id="ema">—</strong></div>
+    <div class="row"><span>RSI (14)</span><strong id="rsi">—</strong></div>
+    <div class="row"><span>Price vs target</span><strong id="vsTarget">—</strong></div>
+    <div class="row"><span>Data points</span><strong id="points">0</strong></div>
+   </div>
+   <div class="note">UP/DOWN labels describe a technical bias only. They do not predict settlement with certainty and may disagree with Kalshi's official index or contract pricing.</div>
+  </div>
+ </section>
+ <div class="panel" style="margin-top:12px">
+  <h2>Market details</h2><div class="rows">
+   <div class="row"><span>Market ticker</span><strong id="ticker">—</strong></div>
+   <div class="row"><span>Market status</span><strong id="marketStatus">—</strong></div>
+   <div class="row"><span>Kalshi market page</span><strong><a id="marketLink" href="https://kalshi.com/markets" target="_blank" rel="noopener" style="color:var(--blue)">Open Kalshi</a></strong></div>
+  </div>
+  <div class="note error" id="error"></div>
+ </div>
+ <div class="footer">No API key is requested. This page only reads public endpoints from Kalshi and Coinbase. If either provider changes access rules or the browser blocks a request, some fields may remain blank. Not financial advice. Do not treat heuristic signals as guaranteed wins.</div>
+</main>
+<script>
+const KALSHI='https://api.elections.kalshi.com/trade-api/v2';
+const COINBASE='https://api.exchange.coinbase.com/products/BTC-USD/ticker';
+const $=id=>document.getElementById(id);
+let prices=[], market=null, running=true, alertsOn=false, lastSignal='WAIT', previousPrice=null, timer=null;
+const fmt=n=>Number.isFinite(n)?n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}):'—';
+const pct=n=>Number.isFinite(n)?`${n>=0?'+':''}${n.toFixed(3)}%`:'—';
+async function json(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error(`${r.status} from data provider`);return r.json()}
+async function getBTC(){
+ try{
+  const d=await json(COINBASE); const p=Number(d.price);
+  if(Number.isFinite(p)){previousPrice=prices.length?prices[prices.length-1].p:p;prices.push({t:Date.now(),p});if(prices.length>180)prices=prices.slice(-180);$('btc').textContent=fmt(p);$('btcChange').textContent=prices.length>1?`${pct((p/prices[Math.max(0,prices.length-4)].p-1)*100)} over recent updates`:'Building history';$('lastUpdate').textContent='Updated '+new Date().toLocaleTimeString();draw();analyze();}
+ }catch(e){$('error').textContent='BTC feed: '+e.message+'. Try Refresh now or check your connection.'}
+}
+async function getMarket(){
+ try{
+  const d=await json(KALSHI+'/markets?series_ticker=KXBTC15M&status=open&limit=10');
+  const ms=(d.markets||[]).filter(m=>!m.close_time||new Date(m.close_time).getTime()>Date.now()).sort((a,b)=>new Date(a.close_time)-new Date(b.close_time));
+  if(!ms.length)throw new Error('No open KXBTC15M market returned');
+  market=ms[0];
+  const strike=Number(market.floor_strike);
+  $('strike').textContent=Number.isFinite(strike)&&strike>0?fmt(strike):'Pending';
+  const current=prices.length?prices[prices.length-1].p:NaN;
+  $('distance').textContent=Number.isFinite(strike)&&strike>0&&Number.isFinite(current)?`${fmt(current-strike)} (${pct((current/strike-1)*100)}) from reference price`:'Distance to target unavailable';
+  const yes=market.yes_ask!=null?Number(market.yes_ask)*100:null;
+  const no=market.no_ask!=null?Number(market.no_ask)*100:null;
+  $('asks').textContent=`${yes!=null?yes.toFixed(0)+'¢':'—'} / ${no!=null?no.toFixed(0)+'¢':'—'}`;
+  $('ticker').textContent=market.ticker||'—';$('marketStatus').textContent=market.status||'Open';
+  $('windowTitle').textContent=market.title||market.ticker||'Current market';
+  $('marketLink').href=market.url||'https://kalshi.com/markets';
+  countdown();analyze();
+ }catch(e){$('error').textContent='Kalshi feed: '+e.message+'. Market data may be temporarily unavailable.'}
+}
+function countdown(){
+ if(!market)return;
+ const end=market.close_time?new Date(market.close_time).getTime():NaN;
+ if(!Number.isFinite(end)){$('countdown').textContent='—:—';return}
+ let secs=Math.max(0,Math.floor((end-Date.now())/1000));
+ $('countdown').textContent=`${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
+ if(secs===0)getMarket();
+}
+function ema(arr,period){if(!arr.length)return NaN;const k=2/(period+1);let v=arr[0];for(let i=1;i<arr.length;i++)v=arr[i]*k+v*(1-k);return v}
+function rsi(arr,period=14){if(arr.length<=period)return NaN;let gains=0,losses=0;for(let i=arr.length-period;i<arr.length;i++){const delta=arr[i]-arr[i-1];if(delta>=0)gains+=delta;else losses-=delta}if(losses===0)return 100;return 100-100/(1+gains/losses)}
+function analyze(){
+ const vals=prices.map(x=>x.p);$('points').textContent=vals.length;
+ if(vals.length<8){$('signalBadge').className='badge neutral';$('signalBadge').textContent='WAIT';$('signalTitle').textContent='Gathering data';$('signalReason').textContent='Collecting recent price updates before evaluating momentum.';return}
+ const now=vals[vals.length-1], old=vals[Math.max(0,vals.length-7)], mom=(now/old-1)*100, e9=ema(vals.slice(-80),9),e21=ema(vals.slice(-100),21),rv=rsi(vals,14);
+ const trend=e9>e21?1:e9<e21?-1:0;
+ let score=(mom>0.025?1:mom<-.025?-1:0)+trend+(rv>55?1:rv<45?-1:0);
+ let signal=score>=2?'UP':score<=-2?'DOWN':'WAIT';
+ let strength=Math.min(90,Math.round(35+Math.abs(score)*18+Math.min(12,Math.abs(mom)*80)));
+ $('signalBadge').className='badge '+(signal==='UP'?'up':signal==='DOWN'?'down':'neutral');
+ $('signalBadge').textContent=signal;
+ $('signalTitle').textContent=signal==='WAIT'?'No clear edge':signal==='UP'?'Bullish technical bias':'Bearish technical bias';
+ $('signalReason').textContent=`Momentum ${mom>=0?'positive':'negative'}; EMA trend ${trend>0?'up':trend<0?'down':'flat'}; RSI ${Number.isFinite(rv)?rv.toFixed(1):'warming up'}.`;
+ $('meter').style.width=(signal==='WAIT'?25:strength)+'%';
+ $('momentum').textContent=pct(mom);$('ema').textContent=trend>0?'Bullish':trend<0?'Bearish':'Flat';$('rsi').textContent=Number.isFinite(rv)?rv.toFixed(1):'Need more data';
+ const strike=market?Number(market.floor_strike):NaN;
+ $('vsTarget').textContent=Number.isFinite(strike)&&strike>0?(now>=strike?'Above target':'Below target'):'Unavailable';
+ if(alertsOn&&signal!=='WAIT'&&signal!==lastSignal&&Notification.permission==='granted')new Notification(`BTC 15m technical bias: ${signal}`,{body:`${fmt(now)} · ${$('signalReason').textContent}`});
+ lastSignal=signal;
+}
+function draw(){
+ const c=$('chart'),ctx=c.getContext('2d'),rect=c.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+ c.width=Math.max(1,rect.width*dpr);c.height=Math.max(1,rect.height*dpr);ctx.scale(dpr,dpr);
+ const w=rect.width,h=rect.height;ctx.clearRect(0,0,w,h);
+ if(prices.length<2){ctx.fillStyle='#9fb0c8';ctx.font='13px system-ui';ctx.fillText('Waiting for live price points…',12,25);return}
+ const vals=prices.map(x=>x.p),min=Math.min(...vals),max=Math.max(...vals),pad=Math.max((max-min)*.15,max*.00015),lo=min-pad,hi=max+pad;
+ ctx.strokeStyle='#26344b';ctx.lineWidth=1;
+ for(let i=0;i<5;i++){let y=12+(h-30)*i/4;ctx.beginPath();ctx.moveTo(42,y);ctx.lineTo(w-6,y);ctx.stroke();ctx.fillStyle='#9fb0c8';ctx.font='10px system-ui';ctx.fillText(fmt(hi-(hi-lo)*i/4),2,y+3)}
+ ctx.beginPath();vals.forEach((v,i)=>{const x=44+(w-54)*i/(vals.length-1),y=12+(h-30)*(hi-v)/(hi-lo);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});
+ ctx.strokeStyle='#7aa7ff';ctx.lineWidth=2.2;ctx.stroke();
+ const v=vals[vals.length-1],y=12+(h-30)*(hi-v)/(hi-lo);ctx.fillStyle='#7aa7ff';ctx.beginPath();ctx.arc(w-10,y,3.5,0,Math.PI*2);ctx.fill();
+}
+async function refresh(){if(!running)return;await Promise.all([getBTC(),getMarket()]);}
+$('refresh').addEventListener('click',refresh);
+$('pause').addEventListener('click',()=>{running=!running;$('pause').textContent=running?'Pause updates':'Resume updates';if(running)refresh()});
+$('alerts').addEventListener('click',async()=>{if(!('Notification'in window)){alert('Browser notifications are not supported here.');return}const p=await Notification.requestPermission();alertsOn=p==='granted';$('alerts').textContent=alertsOn?'Browser alerts enabled':'Enable browser alerts';if(alertsOn)alert('Alerts enabled for changes between UP, DOWN, and WAIT signals. Keep this page open.');});
+window.addEventListener('resize',draw);
+refresh();timer=setInterval(()=>{if(running){getBTC();getMarket()}},5000);setInterval(countdown,250);
+</script>
+</body></html>
